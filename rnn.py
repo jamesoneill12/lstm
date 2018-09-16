@@ -3,9 +3,9 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class GRU(nn.Module):
+class RNN(nn.Module):
     def __init__(self, emb_size, vocab_size, hid_dim, hid_num, class_num):
-        super(GRU, self).__init__()
+        super(RNN, self).__init__()
 
         self.emb_size = emb_size
         self.hid_dim = hid_dim
@@ -17,7 +17,6 @@ class GRU(nn.Module):
         self.hbias = []
 
         assert emb_size == hid_dim
-
         self.h0 = torch.zeros((1, hid_dim)).type(torch.FloatTensor).cuda()
 
         for hid in range(hid_num):
@@ -30,29 +29,14 @@ class GRU(nn.Module):
                 self.hweight.append(self.w1)
                 self.hbias.append(self.b1)
             else:
-                self.hweight.append(nn.Parameter(torch.randn(hid_dim, hid_dim * 6)))
-                self.hbias.append(nn.Parameter(torch.zeros(1, hid_dim * 6)))
+                self.hweight.append(nn.Parameter(torch.randn(hid_dim, 2* hid_dim)))
+                self.hbias.append(nn.Parameter(torch.zeros(1, hid_dim)))
         self.fc1 = nn.Linear(hid_dim, class_num)
 
     def forward_step(self, x, htm1, lnum=0):
-        x_in = torch.mm(x, self.hweight[lnum][:, :self.hid_dim]) \
-               + self.hbias[lnum][:, :self.hid_dim] \
-               + torch.mm(htm1, self.hweight[lnum][:, self.hid_dim:2*self.hid_dim]) \
-               + self.hbias[lnum][:, self.hid_dim:2 * self.hid_dim]
-        r_t = F.sigmoid(x_in)
-
-        x_in = torch.mm(x, self.hweight[lnum][:, 2 * self.hid_dim: 3 * self.hid_dim]) \
-            + self.hbias[lnum][:, 2 * self.hid_dim:3 * self.hid_dim] \
-            + torch.mm(htm1, self.hweight[lnum][:, 3 * self.hid_dim: 4 * self.hid_dim]) \
-            + self.hbias[lnum][:, 3 * self.hid_dim:4 * self.hid_dim]
-        z_t = F.sigmoid(x_in)
-
-        x_in = torch.mm(x, self.hweight[lnum][:, 4 * self.hid_dim: 5 * self.hid_dim]) \
-            + self.hbias[lnum][:, 4 * self.hid_dim: 5 * self.hid_dim] \
-            + r_t * (torch.mm(htm1, self.hweight[lnum][:, 5 * self.hid_dim: 6 * self.hid_dim]) \
-            + (self.hbias[lnum][:, 5 * self.hid_dim: 6 * self.hid_dim]))
-        n_t = F.tanh(x_in)
-        h_t = (1 - z_t) * n_t + z_t * htm1
+        x_in = torch.mm(x, self.hweight[lnum][:, :self.hid_dim]) + self.hbias[lnum][:, :self.hid_dim] \
+               + torch.mm(htm1, self.hweight[lnum][:, self.hid_dim: 2 * self.hid_dim])
+        h_t = F.tanh(x_in)
         return h_t
 
     # (sent_len, batch_size, embedding_size)
